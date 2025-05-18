@@ -68,13 +68,13 @@ airflowHome: /opt/airflow
 defaultAirflowRepository: apache/airflow
 
 # Default airflow tag to deploy
-defaultAirflowTag: "2.10.4"
+defaultAirflowTag: "3.0.0"
 
 # Default airflow digest. If specified, it takes precedence over tag
 defaultAirflowDigest: ~
 
 # Airflow version (Used to make some decisions based on Airflow Version being deployed)
-airflowVersion: "2.10.4"
+airflowVersion: "3.0.0"
 
 # Images
 images:
@@ -115,11 +115,11 @@ images:
     pullPolicy: IfNotPresent
   pgbouncer:
     repository: apache/airflow
-    tag: airflow-pgbouncer-2024.09.19-1.22.1
+    tag: airflow-pgbouncer-2025.03.05-1.23.1
     pullPolicy: IfNotPresent
   pgbouncerExporter:
     repository: apache/airflow
-    tag: airflow-pgbouncer-exporter-2024.06.18-0.17.0
+    tag: airflow-pgbouncer-exporter-2025.03.05-0.18.0
     pullPolicy: IfNotPresent
   gitSync:
     repository: registry.k8s.io/git-sync/git-sync
@@ -138,8 +138,53 @@ labels: {}
 
 # Ingress configuration
 ingress:
-  # Enable all ingress resources (deprecated - use ingress.web.enabled and ingress.flower.enabled)
+  # Enable all ingress resources
+  # (deprecated - use ingress.web.enabled, ingress.apiServer.enabled and ingress.flower.enabled)
   enabled: ~
+
+  # Configs for the Ingress of the API Server
+  apiServer:
+    # Enable API Server ingress resource
+    enabled: false
+
+    # Annotations for the API Server Ingress
+    annotations: {}
+
+    # The path for the API Server Ingress
+    path: "/"
+
+    # The pathType for the above path (used only with Kubernetes v1.19 and above)
+    pathType: "ImplementationSpecific"
+
+    # The hostname for the API Server Ingress (Deprecated - renamed to `ingress.apiServer.hosts`)
+    host: ""
+
+    # The hostnames or hosts configuration for the API Server Ingress
+    hosts: []
+    #   # The hostname for the web Ingress (templated)
+    # - name: ""
+    #   # configs for API Server Ingress TLS
+    #   tls:
+    #     # Enable TLS termination for the API Server Ingress
+    #     enabled: false
+    #     # the name of a pre-created Secret containing a TLS private key and certificate
+    #     secretName: ""
+
+    # The Ingress Class for the API Server Ingress (used only with Kubernetes v1.19 and above)
+    ingressClassName: ""
+
+    # configs for API Server Ingress TLS (Deprecated - renamed to `ingress.apiServer.hosts[*].tls`)
+    tls:
+      # Enable TLS termination for the API Server Ingress
+      enabled: false
+      # the name of a pre-created Secret containing a TLS private key and certificate
+      secretName: ""
+
+    # HTTP paths to add to the API Server Ingress before the default path
+    precedingPaths: []
+
+    # Http paths to add to the API Server Ingress after the default path
+    succeedingPaths: []
 
   # Configs for the Ingress of the web Service
   web:
@@ -160,7 +205,7 @@ ingress:
 
     # The hostnames or hosts configuration for the web Ingress
     hosts: []
-    #   # The hostname for the web Ingress (can be templated)
+    #   # The hostname for the web Ingress (templated)
     # - name: ""
     #   # configs for web Ingress TLS
     #   tls:
@@ -204,7 +249,7 @@ ingress:
 
     # The hostnames or hosts configuration for the flower Ingress
     hosts: []
-    #   # The hostname for the flower Ingress (can be templated)
+    #   # The hostname for the flower Ingress (templated)
     # - name: ""
     #   tls:
     #     # Enable TLS termination for the flower Ingress
@@ -241,7 +286,7 @@ ingress:
 
     # The hostnames or hosts configuration for the statsd Ingress
     hosts: []
-    #   # The hostname for the statsd Ingress (can be templated)
+    #   # The hostname for the statsd Ingress (templated)
     # - name: ""
     #   tls:
     #     # Enable TLS termination for the statsd Ingress
@@ -271,7 +316,7 @@ ingress:
 
     # The hostnames or hosts configuration for the pgbouncer Ingress
     hosts: []
-    #   # The hostname for the statsd Ingress (can be templated)
+    #   # The hostname for the statsd Ingress (templated)
     # - name: ""
     #   tls:
     #     # Enable TLS termination for the pgbouncer Ingress
@@ -295,9 +340,9 @@ airflowPodAnnotations: {}
 # main Airflow configmap
 airflowConfigAnnotations: {}
 
-# `airflow_local_settings` file as a string (can be templated).
+# `airflow_local_settings` file as a string (templated).
 airflowLocalSettings: |-
-  {{- if semverCompare ">=2.2.0" .Values.airflowVersion }}
+  {{- if semverCompare ">=2.2.0 <3.0.0" .Values.airflowVersion }}
   {{- if not (or .Values.webserverSecretKey .Values.webserverSecretKeySecretName) }}
   from airflow.www.utils import UIAlert
 
@@ -323,8 +368,10 @@ rbac:
   createSCCRoleBinding: false
 
 # Airflow executor
-# One of: LocalExecutor, LocalKubernetesExecutor, CeleryExecutor, KubernetesExecutor, CeleryKubernetesExecutor
-# Specify executors in a prioritized list to leverage multiple execution environments as needed.
+# One or multiple of: LocalExecutor, CeleryExecutor, KubernetesExecutor
+# For Airflow <3.0, LocalKubernetesExecutor and CeleryKubernetesExecutor are also supported.
+# Specify executors in a prioritized list to leverage multiple execution environments as needed:
+# https://airflow.apache.org/docs/apache-airflow/stable/core-concepts/executor/index.html#using-multiple-executors-concurrently
 executor: "CeleryExecutor"
 
 # If this is true and using LocalExecutor/KubernetesExecutor/CeleryKubernetesExecutor, the scheduler's
@@ -366,6 +413,7 @@ enableBuiltInSecretEnvVars:
   AIRFLOW__CELERY__BROKER_URL: true
   AIRFLOW__ELASTICSEARCH__HOST: true
   AIRFLOW__ELASTICSEARCH__ELASTICSEARCH_HOST: true
+  AIRFLOW__OPENSEARCH__HOST: true
 
 # Priority Classes that will be installed by charts.
 # Ideally, there should be an entry for dagProcessor, flower,
@@ -385,9 +433,9 @@ priorityClasses: []
 # Extra secrets that will be managed by the chart
 # (You can use them with extraEnv or extraEnvFrom or some of the extraVolumes values).
 # The format for secret data is "key/value" where
-#    * key (can be templated) is the name of the secret that will be created
+#    * key (templated) is the name of the secret that will be created
 #    * value: an object with the standard 'data' or 'stringData' key (or both).
-#          The value associated with those keys must be a string (can be templated)
+#          The value associated with those keys must be a string (templated)
 extraSecrets: {}
 # eg:
 # extraSecrets:
@@ -412,9 +460,9 @@ extraSecrets: {}
 # Extra ConfigMaps that will be managed by the chart
 # (You can use them with extraEnv or extraEnvFrom or some of the extraVolumes values).
 # The format for configmap data is "key/value" where
-#    * key (can be templated) is the name of the configmap that will be created
+#    * key (templated) is the name of the configmap that will be created
 #    * value: an object with the standard 'data' key.
-#          The value associated with this keys must be a string (can be templated)
+#          The value associated with this keys must be a string (templated)
 extraConfigMaps: {}
 # eg:
 # extraConfigMaps:
@@ -426,7 +474,7 @@ extraConfigMaps: {}
 #       AIRFLOW_VAR_KUBERNETES_NAMESPACE: "{{ .Release.Namespace }}"
 
 # Extra env 'items' that will be added to the definition of airflow containers
-# a string is expected (can be templated).
+# a string is expected (templated).
 # TODO: difference from `env`? This is a templated string. Probably should template `env` and remove this.
 extraEnv: ~
 # eg:
@@ -435,7 +483,7 @@ extraEnv: ~
 #     value: 'True'
 
 # Extra envFrom 'items' that will be added to the definition of airflow containers
-# A string is expected (can be templated).
+# A string is expected (templated).
 extraEnvFrom: ~
 # eg:
 # extraEnvFrom: |
@@ -776,6 +824,9 @@ workers:
   extraVolumes: []
   extraVolumeMounts: []
 
+  # Expose additional ports. These can be used for additional metric collection.
+  extraPorts: []
+
   # Select certain nodes for airflow worker pods.
   nodeSelector: {}
   runtimeClassName: ~
@@ -820,6 +871,8 @@ workers:
     args: ["bash", "/clean-logs"]
     # Number of days to retain logs
     retentionDays: 15
+    # frequency to attempt to groom logs, in minutes
+    frequencyMinutes: 15
     resources: {}
     #  limits:
     #   cpu: 100m
@@ -830,6 +883,7 @@ workers:
     # Detailed default security context for logGroomerSidecar for container level
     securityContexts:
       container: {}
+    env: []
 
   waitForMigrations:
     # Whether to create init container to wait for db migrations
@@ -890,6 +944,7 @@ scheduler:
   # Wait for at most 1 minute (6*10s) for the scheduler container to startup.
   # livenessProbe kicks in after the first successful startupProbe
   startupProbe:
+    initialDelaySeconds: 0
     failureThreshold: 6
     periodSeconds: 10
     timeoutSeconds: 20
@@ -933,7 +988,7 @@ scheduler:
 
   # Create ServiceAccount
   serviceAccount:
-    # default value is true
+    # only affect CeleryExecutor, default value is true
     # ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
     automountServiceAccountToken: true
     # Specifies whether a ServiceAccount should be created
@@ -1021,6 +1076,8 @@ scheduler:
     args: ["bash", "/clean-logs"]
     # Number of days to retain logs
     retentionDays: 15
+    # frequency to attempt to groom logs, in minutes
+    frequencyMinutes: 15
     resources: {}
     #  limits:
     #   cpu: 100m
@@ -1033,6 +1090,7 @@ scheduler:
       container: {}
     # container level lifecycle hooks
     containerLifecycleHooks: {}
+    env: []
 
   waitForMigrations:
     # Whether to create init container to wait for db migrations
@@ -1251,7 +1309,8 @@ apiServer:
   # Command to use when running the Airflow API server (templated).
   command: ~
   # Args to use when running the Airflow API server (templated).
-  args: ["bash", "-c", "exec airflow fastapi-api"]
+  args: ["bash", "-c", "exec airflow api-server"]
+  allowPodLogReading: true
   env: []
   serviceAccount:
     # default value is true
@@ -1335,6 +1394,7 @@ apiServer:
     scheme: HTTP
 
   startupProbe:
+    initialDelaySeconds: 0
     timeoutSeconds: 20
     failureThreshold: 6
     periodSeconds: 10
@@ -1371,6 +1431,7 @@ webserver:
   # Wait for at most 1 minute (6*10s) for the webserver container to startup.
   # livenessProbe kicks in after the first successful startupProbe
   startupProbe:
+    initialDelaySeconds: 0
     timeoutSeconds: 20
     failureThreshold: 6
     periodSeconds: 10
@@ -1502,7 +1563,7 @@ webserver:
   extraVolumes: []
   extraVolumeMounts: []
 
-  # This string (can be templated) will be mounted into the Airflow Webserver
+  # This string (templated) will be mounted into the Airflow Webserver
   # as a custom webserver_config.py. You can bake a webserver_config.py in to
   # your image instead or specify a configmap containing the
   # webserver_config.py.
@@ -1733,6 +1794,8 @@ triggerer:
     args: ["bash", "/clean-logs"]
     # Number of days to retain logs
     retentionDays: 15
+    # frequency to attempt to groom logs, in minutes
+    frequencyMinutes: 15
     resources: {}
     #  limits:
     #   cpu: 100m
@@ -1746,6 +1809,8 @@ triggerer:
 
     # container level lifecycle hooks
     containerLifecycleHooks: {}
+
+    env: []
 
   waitForMigrations:
     # Whether to create init container to wait for db migrations
@@ -1788,7 +1853,7 @@ triggerer:
 
     # Query to use for KEDA autoscaling. Must return a single integer.
     query: >-
-      SELECT ceil(COUNT(*)::decimal / {{ .Values.config.triggerer.default_capacity }})
+      SELECT ceil(COUNT(*)::decimal / {{ include "triggerer.capacity" . }})
       FROM trigger
 
     # Whether to use PGBouncer to connect to the database or not when it is enabled
@@ -1797,7 +1862,7 @@ triggerer:
 
 # Airflow Dag Processor Config
 dagProcessor:
-  enabled: false
+  enabled: ~
   # Number of airflow dag processors in the deployment
   replicas: 1
   # Max number of old replicasets to retain
@@ -1917,6 +1982,8 @@ dagProcessor:
     args: ["bash", "/clean-logs"]
     # Number of days to retain logs
     retentionDays: 15
+    # frequency to attempt to groom logs, in minutes
+    frequencyMinutes: 15
     resources: {}
     #  limits:
     #   cpu: 100m
@@ -1926,6 +1993,8 @@ dagProcessor:
     #   memory: 128Mi
     securityContexts:
       container: {}
+
+    env: []
 
   waitForMigrations:
     # Whether to create init container to wait for db migrations
@@ -1954,6 +2023,14 @@ flower:
     timeoutSeconds: 5
     failureThreshold: 10
     periodSeconds: 5
+
+  # Wait for at most 1 minute (6*10s) for the flower container to startup.
+  # livenessProbe kicks in after the first successful startupProbe
+  startupProbe:
+    initialDelaySeconds: 0
+    timeoutSeconds: 20
+    failureThreshold: 6
+    periodSeconds: 10
 
   # Max number of old replicasets to retain
   revisionHistoryLimit: ~
@@ -2172,6 +2249,10 @@ pgbouncer:
   auth_type: scram-sha-256
   auth_file: /etc/pgbouncer/users.txt
 
+  # Whether to mount the config secret files at a default location (/etc/pgbouncer/*).
+  # Can be skipped to allow for other means to get the values, e.g. secrets provider class.
+  mountConfigSecret: true
+
   # annotations to be added to the PgBouncer deployment
   annotations: {}
 
@@ -2278,6 +2359,8 @@ pgbouncer:
   #     - name: my-templated-extra-volume
   #       mountPath: "{{ .Values.my_custom_path }}"
   #       readOnly: true
+  # Volumes apply to all pgbouncer containers, while volume mounts apply to the pgbouncer
+  # container itself. Metrics exporter container has its own mounts.
   extraVolumes: []
   extraVolumeMounts: []
 
@@ -2351,6 +2434,15 @@ pgbouncer:
       periodSeconds: 10
       timeoutSeconds: 1
 
+    # Mount additional volumes into the metrics exporter. It can be templated like in the following example:
+    #   extraVolumeMounts:
+    #     - name: my-templated-extra-volume
+    #       mountPath: "{{ .Values.my_custom_path }}"
+    #       readOnly: true
+    extraVolumeMounts: []
+
+  # Labels specific to pgbouncer objects and pods
+  labels: {}
   # Environment variables to add to pgbouncer container
   env: []
 
@@ -2473,6 +2565,22 @@ elasticsearch:
   #   port: ~
   connection: {}
 
+# OpenSearch logging configuration
+opensearch:
+  # Enable opensearch task logging
+  enabled: false
+  # A secret containing the connection
+  secretName: ~
+  # Or an object representing the connection
+  # Example:
+  # connection:
+  #   scheme: ~
+  #   user: ~
+  #   pass: ~
+  #   host: ~
+  #   port: ~
+  connection: {}
+
 # All ports used by chart
 ports:
   flowerUI: 5555
@@ -2484,7 +2592,7 @@ ports:
   statsdScrape: 9102
   pgbouncer: 6543
   pgbouncerScrape: 9127
-  apiServer: 9091
+  apiServer: 8080
 
 # Define any ResourceQuotas for namespace
 quotas: {}
@@ -2591,16 +2699,20 @@ config:
     executor: '{{ .Values.executor }}'
     # For Airflow 1.10, backward compatibility; moved to [logging] in 2.0
     colored_console_log: 'False'
-    remote_logging: '{{- ternary "True" "False" .Values.elasticsearch.enabled }}'
+    remote_logging: '{{- ternary "True" "False" (or .Values.elasticsearch.enabled .Values.opensearch.enabled) }}'
+    auth_manager: '{{ ternary "airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager" "airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager" (semverCompare ">=3.0.0" .Values.airflowVersion) }}'
   logging:
-    remote_logging: '{{- ternary "True" "False" .Values.elasticsearch.enabled }}'
+    remote_logging: '{{- ternary "True" "False" (or .Values.elasticsearch.enabled .Values.opensearch.enabled) }}'
     colored_console_log: 'False'
   metrics:
     statsd_on: '{{ ternary "True" "False" .Values.statsd.enabled }}'
     statsd_port: 9125
     statsd_prefix: airflow
     statsd_host: '{{ printf "%s-statsd" (include "airflow.fullname" .) }}'
+  fab:
+    enable_proxy_fix: 'True'
   webserver:
+    # For Airflow 2.X
     enable_proxy_fix: 'True'
     # For Airflow 1.10
     rbac: 'True'
@@ -2608,7 +2720,7 @@ config:
     flower_url_prefix: '{{ ternary "" .Values.ingress.flower.path (eq .Values.ingress.flower.path "/") }}'
     worker_concurrency: 16
   scheduler:
-    standalone_dag_processor: '{{ ternary "True" "False" .Values.dagProcessor.enabled }}'
+    standalone_dag_processor: '{{ ternary "True" "False" (or (semverCompare ">=3.0.0" .Values.airflowVersion) (.Values.dagProcessor.enabled | default false)) }}'
     # statsd params included for Airflow 1.10 backward compatibility; moved to [metrics] in 2.0
     statsd_on: '{{ ternary "True" "False" .Values.statsd.enabled }}'
     statsd_port: 9125
@@ -2648,8 +2760,7 @@ config:
     worker_container_repository: '{{ .Values.images.airflow.repository | default .Values.defaultAirflowRepository }}'
     worker_container_tag: '{{ .Values.images.airflow.tag | default .Values.defaultAirflowTag }}'
     multi_namespace_mode: '{{ ternary "True" "False" .Values.multiNamespaceMode }}'
-  triggerer:
-    default_capacity: 1000
+
 # yamllint enable rule:line-length
 
 # Whether Airflow can launch workers and/or pods in multiple namespaces

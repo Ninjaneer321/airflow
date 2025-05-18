@@ -92,7 +92,7 @@ echo "${VERSION}" > clients/python/version.txt
 
 ```shell script
 cd ${AIRFLOW_REPO_ROOT}
-git log 2.8.0..HEAD --pretty=oneline -- airflow/api_connexion/openapi/v1.yaml
+git log 2.8.0..HEAD --pretty=oneline -- airflow-core/src/airflow/api_fastapi/core_api/openapi/v2-rest-api-generated.yaml
 ```
 
 - Update CHANGELOG.md with the details.
@@ -120,7 +120,7 @@ git log 2.8.0..HEAD --pretty=oneline -- airflow/api_connexion/openapi/v1.yaml
 ```shell script
 cd ${AIRFLOW_REPO_ROOT}
 rm dist/*
-breeze release-management prepare-python-client --package-format both --python-client-repo "${CLIENT_REPO_ROOT}"
+breeze release-management prepare-python-client --distribution-format both --python-client-repo "${CLIENT_REPO_ROOT}"
 ```
 
 - This should generate both sdist and .whl package in `dist` folder of the Airflow repository. It should
@@ -203,7 +203,7 @@ To do this we need to:
 
 ```shell script
 rm dist/*
-breeze release-management prepare-python-client --package-format both --version-suffix-for-pypi "${VERSION_SUFFIX}"
+breeze release-management prepare-python-client --distribution-format both --version-suffix "${VERSION_SUFFIX}"
 ```
 
 - Verify the artifacts that would be uploaded:
@@ -333,7 +333,7 @@ VERSION=X.Y.Zrc1
 git checkout python-client-${VERSION}
 export AIRFLOW_REPO_ROOT=$(pwd)
 rm -rf dist/*
-breeze release-management prepare-python-client --package-format both
+breeze release-management prepare-python-client --distribution-format both
 ```
 
 The last - build step - by default will use Dockerized build and building of Python client packages
@@ -341,7 +341,7 @@ will be done in a docker container.  However, if you have  `hatch` installed loc
 `--use-local-hatch` flag and it will build and use  docker image that has `hatch` installed.
 
 ```bash
-breeze release-management prepare-python-client --package-format both --use-local-hatch
+breeze release-management prepare-python-client --distribution-format both --use-local-hatch
 ```
 
 This is generally faster and requires less resources/network bandwidth.
@@ -477,8 +477,8 @@ and allows you to test the client in a real environment.
    variable in `files/airflow-breeze-config/init.sh`:
 
 ```shell
-export AIRFLOW__API__AUTH_BACKENDS=airflow.api.auth.backend.session,airflow.providers.fab.auth_manager.api.auth.backend.basic_auth
-export AIRFLOW__WEBSERVER__EXPOSE_CONFIG=True
+export AIRFLOW__API__AUTH_BACKENDS=airflow.providers.fab.auth_manager.api.auth.backend.session,airflow.providers.fab.auth_manager.api.auth.backend.basic_auth
+export AIRFLOW__API__EXPOSE_CONFIG=True
 ```
 
 
@@ -487,7 +487,7 @@ or `http://localhost:28080` from the host) and you should be able to access the 
 with `admin`/`admin` credentials. The `http://localhost:8080` and `admin`/`admin` credentials are
 default in the `clients/python/test_python_client.py` test.
 
-The ``AIRFLOW__WEBSERVER__EXPOSE_CONFIG`` is optional - the script will also succeed when
+The ``AIRFLOW__API__EXPOSE_CONFIG`` is optional - the script will also succeed when
 (default setting) exposing configuration is disabled.
 
 2. Start Airflow in Breeze with example dags enabled:
